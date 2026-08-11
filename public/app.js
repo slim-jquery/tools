@@ -62,13 +62,18 @@ async function loadUsersList() {
             data.users.forEach(u => {
                 const card = document.createElement('div');
                 card.className = 'account-card';
-                card.onclick = () => selectUser(u.name, u.phoneClue);
+                card.onclick = () => selectUser(u.name);
+
+                const avatarHtml = u.profilePicUrl 
+                    ? `<img src="${u.profilePicUrl}" class="acc-avatar" style="object-fit:cover;">`
+                    : `<div class="acc-avatar">${u.name.charAt(0).toUpperCase()}</div>`;
+
                 card.innerHTML = `
                     <div class="acc-info">
-                        <div class="acc-avatar">${u.name.charAt(0).toUpperCase()}</div>
+                        ${avatarHtml}
                         <div>
                             <div class="acc-name">${u.name}</div>
-                            <div class="acc-clue">Clue No: ***${u.phoneClue || ''}</div>
+                            <div class="acc-clue" style="font-size:10px; color:var(--text-muted);">Clue No: ***${u.phoneClue || ''}</div>
                         </div>
                     </div>
                     <div class="acc-badge">Online</div>
@@ -83,14 +88,11 @@ async function loadUsersList() {
     }
 }
 
-function selectUser(name, phoneClue) {
+function selectUser(name) {
     selectedName = name;
     document.getElementById('accountSelectionArea').style.display = 'none';
     document.getElementById('btnBackAccount').style.display = 'flex';
     document.getElementById('selectedUserDisplay').textContent = name;
-
-    const clueEl = document.getElementById('selectedUserClue');
-    if (clueEl) clueEl.textContent = phoneClue ? `***${phoneClue}` : '***';
 
     document.getElementById('selectedUserAvatar').textContent = name.charAt(0).toUpperCase();
     document.getElementById('pinInputSection').style.display = 'block';
@@ -222,9 +224,16 @@ async function requestPairingCode() {
             const interval = setInterval(async () => {
                 const res = await fetch('/status');
                 const data = await res.json();
+                
                 if (data.connected) {
                     clearInterval(interval);
-                    checkStatus();
+                    
+                    document.getElementById('pairingCodeValue').textContent = '';
+                    document.getElementById('pairingCodeDisplay').style.display = 'none';
+                    if (phoneInput) phoneInput.value = '';
+
+                    showMessage('✅ Perangkat Berhasil Ditautkan!', 'success');
+                    backToLogin();
                 }
             }, 3000);
 
@@ -620,11 +629,20 @@ function previewImage(input) {
     reader.readAsDataURL(file);
 }
 
+// Notif Khusus Bento Set PP
+function showPPBentoMsg(msg, type) {
+    const el = document.getElementById('ppBentoMessage');
+    if (!el) return;
+    el.innerHTML = `<div class="message ${type}">${msg}</div>`;
+    setTimeout(() => { el.innerHTML = ''; }, 3500);
+}
+
 async function uploadRectangle() {
     const fileInput = document.getElementById('rectangleImage');
+    const preview = document.getElementById('rectanglePreview');
     const btnUpload = document.getElementById('btnUploadPP');
 
-    if (!fileInput.files[0]) return showMessage('Pilih foto terlebih dahulu!', 'error');
+    if (!fileInput.files[0]) return showPPBentoMsg('Pilih foto terlebih dahulu!', 'error');
 
     const formData = new FormData();
     formData.append('image', fileInput.files[0]);
@@ -637,13 +655,19 @@ async function uploadRectangle() {
         const result = await response.json();
 
         if (result.success) {
-            showMessage('Foto profil dipasang!', 'success');
+            showPPBentoMsg(result.message || 'Foto profil berhasil diubah!', 'success');
+            
+            fileInput.value = '';
+            if (preview) {
+                preview.innerHTML = 'Pilih Gambar Dari Galeri';
+            }
+
             checkStatus();
         } else {
-            showMessage(result.message, 'error');
+            showPPBentoMsg(result.message, 'error');
         }
     } catch (error) {
-        showMessage('Gagal memproses foto', 'error');
+        showPPBentoMsg('Gagal memproses foto', 'error');
     } finally {
         btnUpload.disabled = false;
         btnUpload.innerHTML = 'Pasang Profil';
