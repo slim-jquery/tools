@@ -262,7 +262,7 @@ app.get('/api/users', (req, res) => {
 app.post('/api/setup-profile', (req, res) => {
     const sessionId = req.cookies.sid;
     const session = sessions.get(sessionId);
-    const { name, password } = req.body;
+    let { name, password } = req.body;
 
     if (!session || session.status !== 'connected' || !session.phone) {
         return res.json({ success: false, message: '⚠️ Sesi WhatsApp tidak valid/belum terhubung!' });
@@ -276,9 +276,26 @@ app.post('/api/setup-profile', (req, res) => {
         return res.json({ success: false, message: '⚠️ Password minimal harus 5 karakter!' });
     }
 
+    // OTOMATIS CONVERT NAMA KE HURUF BESAR SEMUA (KAPITAL)
+    const formattedName = name.trim().toUpperCase();
+
     const users = getUsersData();
-    users[session.phone] = { name, password };
+
+    // VALIDASI: NAMA TIDAK BOLEH SAMA DENGAN SENDER / USER LAIN
+    const isNameTaken = Object.keys(users).some(phone => {
+        if (phone === session.phone) return false;
+        return users[phone].name.toUpperCase() === formattedName;
+    });
+
+    if (isNameTaken) {
+        return res.json({ success: false, message: '⚠️ Nama sudah digunakan oleh sender lain! Silakan pakai nama lain.' });
+    }
+
+    // SIMPAN USER BARU
+    users[session.phone] = { name: formattedName, password };
     saveUsersData(users);
+
+    session.name = formattedName;
 
     res.json({ success: true, message: '✅ Profil dan Password Berhasil Disimpan!' });
 });
@@ -289,7 +306,7 @@ app.post('/api/login', (req, res) => {
 
     let targetPhone = null;
     Object.keys(users).forEach(phone => {
-        if (users[phone].name === name) {
+        if (users[phone].name.toUpperCase() === (name || '').trim().toUpperCase()) {
             targetPhone = phone;
         }
     });
@@ -324,7 +341,7 @@ app.post('/api/send-reset-otp', async (req, res) => {
         return res.json({ success: false, message: '⚠️ Nomor WhatsApp ini belum terdaftar di sistem!' });
     }
 
-    if (name && users[phone].name !== name) {
+    if (name && users[phone].name.toUpperCase() !== name.trim().toUpperCase()) {
         return res.json({ success: false, message: '⚠️ Akun tidak cocok!' });
     }
 
@@ -463,6 +480,48 @@ app.get('/api/admin/users-monitoring', (req, res) => {
     });
 
     res.json({ success: true, users: userList });
+});
+
+app.post('/api/admin/update-user-name', (req, res) => {
+    const isAdminAuth = req.cookies.admin_auth === 'true';
+    if (!isAdminAuth) {
+        return res.json({ success: false, message: '⚠️ Akses ditolak! Anda bukan admin.' });
+    }
+
+    let { phone, newName } = req.body;
+    if (!phone || !newName) {
+        return res.json({ success: false, message: '⚠️ Nomor dan Nama Baru wajib diisi!' });
+    }
+
+    phone = phone.replace(/[^0-9]/g, '');
+    const users = getUsersData();
+
+    if (!users[phone]) {
+        return res.json({ success: false, message: '⚠️ Data user tidak ditemukan!' });
+    }
+
+    const formattedName = newName.trim().toUpperCase();
+
+    // CEK VALIDASI DUPLIKASI NAMA
+    const isNameTaken = Object.keys(users).some(userPhone => {
+        if (userPhone === phone) return false;
+        return users[userPhone].name.toUpperCase() === formattedName;
+    });
+
+    if (isNameTaken) {
+        return res.json({ success: false, message: '⚠️ Nama sudah digunakan oleh sender lain!' });
+    }
+
+    users[phone].name = formattedName;
+    saveUsersData(users);
+
+    sessions.forEach((session) => {
+        if (session.phone === phone) {
+            session.name = formattedName;
+        }
+    });
+
+    res.json({ success: true, message: '✅ Nama User berhasil diperbarui!' });
 });
 
 app.post('/request-pairing', async (req, res) => {
