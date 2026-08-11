@@ -73,7 +73,7 @@ async function loadUsersList() {
                         ${avatarHtml}
                         <div>
                             <div class="acc-name">${u.name}</div>
-                            <div class="acc-clue" style="font-size:10px; color:var(--text-muted);">Clue No: ***${u.phoneClue || ''}</div>
+                            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">***${u.phoneClue || ''}</div>
                         </div>
                     </div>
                     <div class="acc-badge">Online</div>
@@ -233,7 +233,10 @@ async function requestPairingCode() {
                     if (phoneInput) phoneInput.value = '';
 
                     showMessage('✅ Perangkat Berhasil Ditautkan!', 'success');
-                    backToLogin();
+                    
+                    // LANGSUNG ARAHKAN KE KONFIGURASI PROFIL
+                    document.getElementById('pairingSection').style.display = 'none';
+                    checkStatus();
                 }
             }, 3000);
 
@@ -629,7 +632,6 @@ function previewImage(input) {
     reader.readAsDataURL(file);
 }
 
-// Notif Khusus Bento Set PP
 function showPPBentoMsg(msg, type) {
     const el = document.getElementById('ppBentoMessage');
     if (!el) return;
